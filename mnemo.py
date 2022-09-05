@@ -40,8 +40,8 @@ class Card:
     # countdown for this round.
     tick: int
 
-    POS_FACTOR = 1.8
-    NEG_FACTOR = 0.6
+    POS_FACTOR = 2.0
+    NEG_FACTOR = 0.5
 
     INIT_TICKS = 2
 
