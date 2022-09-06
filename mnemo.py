@@ -254,10 +254,11 @@ if __name__ == '__main__':
         deck.pretty_print(args.fmt)
     else:
         # copy a backup of the log to /tmp.
-        timestamp = int(datetime.now().timestamp())
-        backup = deck.log_path.replace('/', '_')
-        backup = f'/tmp/{backup}.{timestamp}'
-        shutil.copy(deck.log_path, backup)
+        if os.path.exists(deck.log_path):
+            timestamp = int(datetime.now().timestamp())
+            backup = deck.log_path.replace('/', '_')
+            backup = f'/tmp/{backup}.{timestamp}'
+            shutil.copy(deck.log_path, backup)
 
         for card in deck.due_today(max_new=args.new_cards):
             deck.play(card)
