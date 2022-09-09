@@ -109,18 +109,19 @@ class Deck:
             self.cards = []
             seen_ids = set()
             for line in f.readlines():
+                # ending '\n' creates dummy value for last cue
+                card = Card(line.lstrip().removeprefix('#'), log_init)
+                if card.id in seen_ids:
+                    print(f'error: duplicate id: #{card.id}')
+                    exit(1)
+                seen_ids.add(card.id)
                 if not line.lstrip().startswith('#'):
-                    card = Card(line, log_init)
-                    if card.id in seen_ids:
-                        print(f'error: duplicate id: #{card.id}')
-                        exit(1)
                     self.cards.append(card)
-                    seen_ids.add(card.id)
 
         if len(set(len(card.cues) for card in self.cards)) != 1:
             print('error: badly formatted .mnemo file.')
             print('not all entries have the same number of fields.')
-            raise Exception()
+            exit(1)
 
         if self.cards[0].id == 0:
             header_card = self.cards.pop(0)
