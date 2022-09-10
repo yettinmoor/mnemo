@@ -247,11 +247,17 @@ if __name__ == '__main__':
 
     if args.inspect:
         due_cards = [card for card in deck.cards if card.is_due()]
+
         old = sum(1 for card in due_cards if not card.new)
-        new = len(due_cards) - old
-        first_new = next(card for card in due_cards if card.new)
         print(f'{old} old cards due.')
-        print(f'{new} new cards available (starting with #{first_new.id}).')
+
+        new = len(due_cards) - old
+        if new:
+            first_new = next(card for card in due_cards if card.new)
+            print(f'{new} new cards available (starting with #{first_new.id}).')
+        else:
+            print(f'no new cards available.')
+
     elif args.dump:
         deck.pretty_print(args.fmt)
     else:
