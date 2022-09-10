@@ -118,12 +118,12 @@ class Deck:
                 if not line.lstrip().startswith('#'):
                     self.cards.append(card)
 
-        if len(set(len(card.cues) for card in self.cards)) != 1:
+        if len(set(len(card.cues) for card in self.cards)) > 1:
             print('error: badly formatted .mnemo file.')
             print('not all entries have the same number of fields.')
             exit(1)
 
-        if self.cards[0].id == 0:
+        if self.cards and self.cards[0].id == 0:
             header_card = self.cards.pop(0)
             self.answer_header = header_card.answer
             self.cue_headers = header_card.cues
