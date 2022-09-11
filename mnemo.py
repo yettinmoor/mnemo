@@ -289,17 +289,21 @@ if __name__ == '__main__':
         else:
             start_id = 1
         with sys.stdin if args.add_cards == '-' else open(args.add_cards) as f:
+            lines = filter(
+                lambda line: line.strip() and not line.lstrip().startswith('#'),
+                f.readlines())
             add_cards = [Card(f'{i} | ' + line, log_init={})
-                         for i, line in enumerate(f.readlines(), start=start_id)]
+                         for i, line in enumerate(lines, start=start_id)]
 
-        make_backup(deck.path)
-
-        with open(deck.path, 'a') as f:
-            for card in add_cards:
-                f.write(str(card) + '\n')
-
-        print(f'appended {len(add_cards)} new cards to {deck.path}.')
-        print(f'saved backup to /tmp/mnemo.')
+        if not add_cards:
+            print('no new cards found.')
+        else:
+            make_backup(deck.path)
+            with open(deck.path, 'a') as f:
+                for card in add_cards:
+                    f.write(str(card) + '\n')
+            print(f'appended {len(add_cards)} new cards to {deck.path}.')
+            print(f'saved backup to /tmp/mnemo.')
 
     else:
         # copy a backup of the log to /tmp.
