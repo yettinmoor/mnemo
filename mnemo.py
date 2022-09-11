@@ -2,6 +2,7 @@ import argparse
 import os
 import pyparsing as pp
 import shutil
+import sys
 import tabulate
 import time
 
@@ -11,18 +12,29 @@ from pyparsing import pyparsing_common as common
 from random import random
 from typing import Iterator, Optional
 
+FIELDS = pp.delimited_list(
+    pp.CharsNotIn('|'),
+    delim='|',
+    allow_trailing_delim=True).set_parse_action(lambda ss: [s.strip() for s in ss])
+
 CARD_FMT = common.integer \
-    + pp.Suppress('|') \
-    + pp.delimited_list(
-        pp.CharsNotIn('|'),
-        delim='|',
-        allow_trailing_delim=True).set_parse_action(lambda ss: [s.strip() for s in ss]) \
-    + pp.Suppress(pp.line_end) \
+    + pp.Char('|').suppress() \
+    + FIELDS \
+    + pp.line_end.suppress() \
     + pp.string_end
 
 HIST_FMT = pp.delimited_list(common.integer ^ common.real) \
     + pp.Suppress(pp.line_end) \
     + pp.string_end
+
+
+def make_backup(path: str):
+    BACKUP_DIR = '/tmp/mnemo'
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    timestamp = int(datetime.now().timestamp())
+    backup = path.lstrip('/').replace('/', '_')
+    backup = os.path.join(BACKUP_DIR, f'{backup}.{timestamp}')
+    shutil.copy(path, backup)
 
 
 class Card:
@@ -56,8 +68,8 @@ class Card:
         self.tick = Card.INIT_TICKS if self.new else 1
         self.first_correct: Optional[bool] = None
 
-    def __repr__(self) -> str:
-        return f'#{self.id}: {self.answer} ({self.factor:.3f}, due {self.due_date})'
+    def __str__(self) -> str:
+        return ' | '.join([str(self.id)] + [self.answer] + self.cues)
 
     @property
     def due_date(self) -> date:
@@ -93,7 +105,7 @@ class Deck:
     cue_headers: list[str] = []
 
     def __init__(self, path: str) -> None:
-        self.path = path
+        self.path = os.path.abspath(path)
 
         log_init = {}
         if os.path.exists(self.log_path):
@@ -118,18 +130,21 @@ class Deck:
                 if not line.lstrip().startswith('#'):
                     self.cards.append(card)
 
-        if len(set(len(card.cues) for card in self.cards)) > 1:
+        # assert consistent number of fields
+        lengths = set(len(card.cues) for card in self.cards)
+        if len(lengths) > 1:
             print('error: badly formatted .mnemo file.')
             print('not all entries have the same number of fields.')
             exit(1)
+        if lengths:
+            self.number_of_fields = lengths.pop()
+        else:
+            self.number_of_fields = 0
 
         if self.cards and self.cards[0].id == 0:
             header_card = self.cards.pop(0)
             self.answer_header = header_card.answer
             self.cue_headers = header_card.cues
-
-    def __repr__(self) -> str:
-        return repr(self.cards)
 
     @property
     def log_path(self) -> str:
@@ -224,6 +239,13 @@ if __name__ == '__main__':
         action='store',
         default=10)
     ap.add_argument(
+        '-a',
+        '--add-cards',
+        metavar='file',
+        help='append new cards to the deck.',
+        type=str,
+        action='store')
+    ap.add_argument(
         '-i',
         '--inspect',
         help='print # of old cards due today and new cards available.',
@@ -260,13 +282,29 @@ if __name__ == '__main__':
 
     elif args.dump:
         deck.pretty_print(args.fmt)
+
+    elif args.add_cards:
+        if deck.cards:
+            start_id = max(card.id for card in deck.cards) + 1
+        else:
+            start_id = 1
+        with sys.stdin if args.add_cards == '-' else open(args.add_cards) as f:
+            add_cards = [Card(f'{i} | ' + line, log_init={})
+                         for i, line in enumerate(f.readlines(), start=start_id)]
+
+        make_backup(deck.path)
+
+        with open(deck.path, 'a') as f:
+            for card in add_cards:
+                f.write(str(card) + '\n')
+
+        print(f'appended {len(add_cards)} new cards to {deck.path}.')
+        print(f'saved backup to /tmp/mnemo.')
+
     else:
         # copy a backup of the log to /tmp.
         if os.path.exists(deck.log_path):
-            timestamp = int(datetime.now().timestamp())
-            backup = deck.log_path.replace('/', '_')
-            backup = f'/tmp/{backup}.{timestamp}'
-            shutil.copy(deck.log_path, backup)
+            make_backup(deck.log_path)
 
         for card in deck.due_today(max_new=args.new_cards):
             deck.play(card)
