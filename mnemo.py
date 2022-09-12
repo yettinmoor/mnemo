@@ -66,7 +66,6 @@ class Card:
 
         self.new = self.factor == 0
         self.tick = Card.INIT_TICKS if self.new else 1
-        self.first_correct: Optional[bool] = None
 
     def __str__(self) -> str:
         return ' | '.join([str(self.id)] + [self.answer] + self.cues)
@@ -78,23 +77,24 @@ class Card:
     def is_due(self) -> bool:
         return self.due_date <= date.today() and self.tick > 0
 
-    def update(self, correct: bool):
-        if self.first_correct is None:
-            self.first_correct = correct
-
-        if correct:
-            self.tick -= 1
-        else:
+    # returns true if card is done for today
+    def update(self, correct: bool) -> bool:
+        if card.new and not correct:
             self.tick = Card.INIT_TICKS
+        else:
+            self.tick -= 1
 
         if self.tick <= 0:
-            self.factor *= Card.POS_FACTOR if self.first_correct else Card.NEG_FACTOR
+            self.factor *= Card.POS_FACTOR if correct else Card.NEG_FACTOR
             self.factor = max(self.factor, 1)
             self.factor *= (1 + 0.25 * random())
 
             if self.due_date < date.today():
                 self.due = int(datetime.today().replace(hour=0).timestamp())
             self.due += int(86400 * self.factor)
+            return True
+
+        return False
 
 
 class Deck:
@@ -103,6 +103,8 @@ class Deck:
 
     answer_header: str = 'ans'
     cue_headers: list[str] = []
+
+    played_this_round: dict[int, bool]
 
     def __init__(self, path: str) -> None:
         self.path = os.path.abspath(path)
@@ -146,11 +148,17 @@ class Deck:
             self.answer_header = header_card.answer
             self.cue_headers = header_card.cues
 
+        self.played_this_round = {}
+
+    def __repr__(self) -> str:
+        return repr(self.cards)
+
     @property
     def log_path(self) -> str:
         return self.path + '.log'
 
-    def play(self, card: Card):
+    # return true if continue, false if exit
+    def play(self, card: Card) -> bool:
         print(f'card #{card.id}')
         for header, cue in zip_longest(self.cue_headers, card.cues):
             if cue:
@@ -160,9 +168,9 @@ class Deck:
 
         try:
             if input('> reveal... ') in ['q', 'Q']:
-                exit(0)
+                return False
         except (KeyboardInterrupt, EOFError):
-            exit(0)
+            return False
 
         if self.answer_header:
             print(self.answer_header, end=': ')
@@ -173,9 +181,11 @@ class Deck:
             try:
                 reply = input('> ok? [y/n] ').lower()
             except (KeyboardInterrupt, EOFError):
-                exit(0)
+                return False
 
-        card.update(reply == 'y')
+        correct = reply == 'y'
+        if card.update(correct):
+            self.played_this_round[card.id] = correct
 
         self.save_log()
 
@@ -188,6 +198,8 @@ class Deck:
 
         print()
         time.sleep(1)
+
+        return True
 
     def save_log(self, path=None):
         if path is None:
@@ -311,4 +323,14 @@ if __name__ == '__main__':
             make_backup(deck.log_path)
 
         for card in deck.due_today(max_new=args.new_cards):
-            deck.play(card)
+            if not deck.play(card):
+                break
+
+        print(f'played {len(deck.played_this_round)} cards.')
+        failed_cards = [k for k, v in deck.played_this_round.items() if not v]
+        if failed_cards:
+            print('failed cards:')
+            for failed_id in failed_cards:
+                card = next(
+                    card for card in deck.cards if card.id == failed_id)
+                print(f'  #{card.id}: {card.answer}')
