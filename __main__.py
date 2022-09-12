@@ -19,6 +19,11 @@ if __name__ == '__main__':
         action='store',
         default=10)
     ap.add_argument(
+        '-r',
+        '--randomize',
+        help='randomize order of new cards.',
+        action='store_true')
+    ap.add_argument(
         '-a',
         '--add-cards',
         metavar='file',
@@ -35,6 +40,7 @@ if __name__ == '__main__':
         '--dump',
         help='print all cards.',
         action='store_true')
+
     ap.add_argument(
         '--fmt',
         help='dump format',
@@ -90,7 +96,7 @@ if __name__ == '__main__':
         if os.path.exists(deck.log_path):
             deck.backup_log()
 
-        for card in deck.due_today(max_new=args.new_cards):
+        for card in deck.due_today(randomize=args.randomize, max_new=args.new_cards):
             if not deck.play(card):
                 break
 

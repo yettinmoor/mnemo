@@ -7,6 +7,7 @@ import time
 from datetime import date, datetime
 from itertools import zip_longest
 from pyparsing import pyparsing_common as common
+from random import shuffle
 from typing import Iterator, Optional
 
 from card import Card
@@ -128,7 +129,11 @@ class Deck:
                 f.write(
                     f'{card.id},{card.due},{card.factor:.3f}\n')
 
-    def due_today(self, max_old: Optional[int] = None, max_new: Optional[int] = None) -> Iterator[Card]:
+    def due_today(self,
+                  randomize=False,
+                  max_old: Optional[int] = None,
+                  max_new: Optional[int] = None) -> Iterator[Card]:
+
         old_cards = [
             card for card in self.cards if not card.new and card.is_due()]
         old_cards.sort(key=lambda card: card.due)
@@ -139,6 +144,8 @@ class Deck:
             yield from old
 
         new_cards = [card for card in self.cards if card.new]
+        if randomize:
+            shuffle(new_cards)
         if max_new is not None:
             new_cards = new_cards[:max_new]
 
